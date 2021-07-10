@@ -29,15 +29,19 @@ Version: Beta 0.8 (Exhibition Brother)
 Version: Beta 0.9 (Tick Ghostwriter)
     _x_ added asv2taxa function to generate unnormalized taxa abundances 
     _x_ added bioindicator function (2 sample sites with 3 replicates each) using kw
+Version: Public 1.0 (Moving Tradition)
+    _x_ improved output for asv2nsti 
+    _x_ added unassigned counter
+    
 
 python scripts/sigilo.py --generate_heatmap -i picrust2_out_pipeline/KO_metagenome_out/pred_metagenome_unstrat.tsv -sig Aldex_results/aldex_significant_all_glm.ep_KO.csv -k metadata/ko00001.keg -o sigilo_results/
 python scripts/sigilo.py --pathway_enrichment -c picrust2_out_pipeline\KO_metagenome_out\pred_metagenome_contrib.tsv -t qiime_results\taxonomy.tsv -k C:\Gresham\Project_Gravimondo\ko00001.keg -pct 0.05 -pval 0.05 -o metagenome_contrib
 
     
 python scripts/sigilo.py --asv2fa -level 4 -select novembro_results_2/site_specific_family_enrichment.tab -c picrust2_out_pipeline/KO_metagenome_out/pred_metagenome_contrib.tsv -t qiime_results/taxonomy.tsv -k metadata/ko00001.keg -o sigilo_results_2/asv2fa.tab
-python scripts/sigilo.py --asv2nsti -level 4 -select novembro_results_2/site_specific_family_enrichment.tab -n picrust2_out_pipeline/marker_predicted_and_nsti.tsv -t qiime_results/taxonomy.tsv -o sigilo_results_2/asv2nsti.tab
+python scripts/sigilo.py --asv2nsti -level 4 -select C:/Gresham/Project_Gravimondo/Project_Impact_2/all_normalized_taxa_abundance_family.tab -n C:/Gresham/Project_Gravimondo/Project_Impact_2/picrust2_out_pipeline/KO_metagenome_out/marker_predicted_and_nsti.tsv -t C:\Gresham\Project_Gravimondo\Project_Impact_2/qiime_results/taxonomy.tsv -o C:/Gresham/Project_Gravimondo/Project_Impact_2/sigilo_results/_asv2nsti.tab
 
-
+C:\Gresham\Project_Gravimondo\Project_Impact_2\novembro
 
 @author: pspea
 """
@@ -64,6 +68,7 @@ parser.add_argument('-s',"--taxa_source")
 parser.add_argument('-a2f',"--asv2fa", action="store_true")
 parser.add_argument('-level',"--taxonomic_level")
 
+#current select input 
 parser.add_argument('-a2n',"--asv2nsti", action="store_true")
 
 parser.add_argument('-pathway',"--pathway_enrichment", action='store_true')
@@ -74,6 +79,7 @@ parser.add_argument('-f',"--feature_file")
 
 parser.add_argument('-bioi',"--bioindicator", action='store_true')
 
+parser.add_argument('-un',"--count_unassigned", action='store_true')
 
 
 parser.add_argument('-o',"--output_file")
@@ -1482,11 +1488,13 @@ if args.asv2nsti:
         
     outfile_name = args.output_file
     outfile = open(outfile_name,'w')
+    header = ('#taxa\tmean_nsti\tmedian_nsti\tstd_nsti\tmedian-std\n')
+    outfile.write(header)
         
     for taxa in nsti_fun:
         nsti_list = nsti_fun[taxa]
         
-        outline = ('{}\t{}\t{}\t{}\n').format(taxa, np.mean(nsti_list), np.median(nsti_list), np.std(nsti_list))
+        outline = ('{}\t{}\t{}\t{}\t{}\n').format(taxa, np.mean(nsti_list), np.median(nsti_list), np.std(nsti_list), np.median(nsti_list)-np.std(nsti_list))
         print(outline)
         outfile.write(outline)
     
@@ -1562,7 +1570,7 @@ def plot_funbubbles():
             
         outfile_name = ('family_{}.pdf').format(condition)
         
-        import plotly.graph_objects as go
+        #import plotly.graph_objects as go
         
         fig = go.Figure()
         fig.add_trace(go.Scatter(
@@ -1986,5 +1994,69 @@ if False:
         else:
             print(line)
             
+if args.count_unassigned:
+    #infile = open(args.input_abundance_file)
+    infile_name = ('C:/Gresham/Project_Gravimondo/Project_Impact_2/Supplemental/unassigned_csv/level-2.csv')
+    infile = open(infile_name)
+    
+    outfile_name = infile_name.split('.csv')[0] + '_unassigned_cts.tab'
+    outfile = open(outfile_name, 'w')
+    
+    header = ('#Sample\tUnassigned\tTotal\tPct\n')
+    outfile.write(header)
+    
+    #ct_taxa = args.ct_taxa
+    ct_taxa = False
+    
+    total_dict = {'P1':0, 'P2':0, 'P3':0,
+                  'I1':0, 'I2':0, 'I3':0}
+    
+    unassigned_dict = {'P1':0, 'P2':0, 'P3':0,
+                  'I1':0, 'I2':0, 'I3':0}
+    
+    for line in infile:
+        if line[0:3] == 'D_0':
+            taxa = line.split(',')[0]
             
+            if ct_taxa:
+                vp1 = min(int(line.split(',')[1]),1)
+                vp2 = min(int(line.split(',')[2]),1)
+                vp3 = min(int(line.split(',')[3]),1)
+                vi1 = min(int(line.split(',')[4]),1)
+                vi2 = min(int(line.split(',')[5]),1)
+                vi3 = min(int(line.split(',')[6]),1)
+            else:
+                vp1 = int(line.split(',')[1])
+                vp2 = int(line.split(',')[2])
+                vp3 = int(line.split(',')[3])
+                vi1 = int(line.split(',')[4])
+                vi2 = int(line.split(',')[5])
+                vi3 = int(line.split(',')[6])
             
+                        
+            if taxa[-2:] ==  '__':
+                unassigned_dict['P1'] += vp1
+                unassigned_dict['P2'] += vp2        
+                unassigned_dict['P3'] += vp3
+                unassigned_dict['I1'] += vi1
+                unassigned_dict['I2'] += vi2           
+                unassigned_dict['I3'] += vi3
+                
+            total_dict['P1'] += vp1
+            total_dict['P2'] += vp2        
+            total_dict['P3'] += vp3
+            total_dict['I1'] += vi1
+            total_dict['I2'] += vi2           
+            total_dict['I3'] += vi3
+            
+    infile.close()
+    
+    for issample in ['P1','P2','P3','I1','I2','I3']:
+        outline = ("{sample}\t{una}\t{ttl}\t{pct}\n"
+                   ).format(sample=issample, ttl=total_dict[issample], una=unassigned_dict[issample], 
+                   pct=round(100*(unassigned_dict[issample]/total_dict[issample]),2))
+        print(outline)
+        outfile.write(outline)
+    
+    outfile.close()
+    
