@@ -11,6 +11,13 @@ python /scratch/ps163/Dr_Carolina/scripts/novembro.py \
     -t /scratch/ps163/Dr_Carolina/Project_Impact/qiime_results/taxonomy.tsv \
     -s silva \
     -o /scratch/ps163/Dr_Carolina/Project_Impact/qiime_results/taxa_counts.tab
+    
+    
+python C:\Gresham\Project_Gravimondo\Project_Impact_2\scripts\novembro.py \
+    -f C:\Gresham\Project_Gravimondo\Project_Impact_2\qiime_results\feature-table_CSS_norm.biom.txt \
+    -t C:\Gresham\Project_Gravimondo\Project_Impact_2\qiime_results\taxonomy.tsv \
+    -s silva \
+    -o C:\Gresham\Project_Gravimondo\Project_Impact_2\PeerJ Submission\Supplmental_CSS_analysis\CSS_taxa_counts.tab
 
 NB: feature-table.biom.txt should be generated from converting the qiime feature_table.biom file to a tsv
 #   biom convert -i feature-table.biom -o feature-table.biom.txt --to-tsv
@@ -22,6 +29,9 @@ Version: Public 1.1 (Piano Harmony)
     _x_ kludge taxa_raw_dict iteration to handle non-triplicate sets
 Version: Public 1.2 (Diamond Retiree)
     _x_ added unique_function
+Version: Public 1.3 (Master Drug)
+    _x_ Add allowance for prenormalization
+    
     
 
 @author: ps163@nyu.edu
@@ -38,10 +48,11 @@ parser.add_argument('-f',"--feature_table")
 parser.add_argument('-t',"--taxonomy")
 parser.add_argument('-s',"--taxa_source")
 parser.add_argument('-o',"--output_file")
-args = parser.parse_args()
 
 parser.add_argument('-u',"--unique_sets")
+parser.add_argument('-p',"--prenormalized_abundances", action='store_true')
 
+args = parser.parse_args()
 
 feature_table_name = args.feature_table 
 taxa_file_name = args.taxonomy
@@ -145,15 +156,37 @@ def build_otu_counts(feature_table_name):
     otu_file.close()
     return(otu_counts)
     
+def prenorm_test(i_set, p_set):
+    process = False
+    i_presence = 0
+    p_presence = 0
+
+    for each in i_set:
+        if each > 0:
+            i_presence += 1
+            
+    for each in p_set:
+        if each > 0:
+            p_presence += 1
+            
+    if i_presence >= 2 or p_presence >= 2:
+        process = True
+    
+    return(process)
+    
 def criteria(i_set, p_set, p_1v2, pval, taxa, pct_effect_size=0.05, pval_threshold=0.05):
     pass_set = []
-    #log_fold_diff = []
+    
+    if args.prenormalized_abundances:
+        prenorm_test_result = prenorm_test(i_set, p_set)
+    else:
+        prenorm_test_result = False
     
     global pass_dict
     
     pass_dict['criteria']+=1
     #print(taxa)
-    if (sum(p_set)+ sum(i_set)) >= 100:
+    if (sum(p_set)+ sum(i_set)) >= 100 or prenorm_test_result:
         #if (pval <= pval_threshold):
         pass_dict['pval']+=1
         max_effect_size = (1+pct_effect_size)
@@ -211,14 +244,14 @@ def return_deets(x_array, y_array):
     return(x_array, np.mean(x_array), np.std(x_array), y_array, obs_counter(y_array))
     
 def run_kruskal(x_set, y_set):
-    if sum(x_set) > 30 or sum(y_set) > 30:
+    if sum(x_set) > 30 or sum(y_set) > 30 or args.prenormalized_abundances:
         _w, p_xvy = stats.kruskal(x_set, y_set)
         return(p_xvy)
     else:
         return(1)
         
 def run_chi2(x_num, x_den, y_num, y_den):
-    if (x_num) > 5 or (y_num) > 5:
+    if (x_num) > 5 or (y_num) > 5 or args.prenormalized_abundances:
         obs = np.array([[max(x_num,1), x_den], [max(y_num,1), y_den]])
         chi2, pval, dof, expected = stats.chi2_contingency(obs, correction=True)
         return(pval)
@@ -233,7 +266,7 @@ def mod_null_set(isset):
 def simplify_enrichment(taxa, p12, i_med, p_med):
     global simplified_enrichment
     
-    print(taxa, p12, i_med, p_med)
+    #print(taxa, p12, i_med, p_med)
     simplified_enrichment[taxa] = 'complex'
     
     if p12<=0.05:
@@ -251,7 +284,7 @@ def plot_top10_taxa(all_taxa_dict, prefix_name, pct_threshold=0.01):
     
     logfile_name = ('taxonomic_abundance_{}_{}_{}.log').format(prefix_name, pct_threshold, taxa_cutoff_name)
     logfile = open(logfile_name, 'w')
-    header = ('taxa\tsource_log10_abundance\tvalley_log10_abundance\tmangrove_log10_abundance\n')
+    header = ('taxa\tpristine_log10_abundance\timpacted_log10_abundance\n')
     logfile.write(header)
     
     specific_taxa_dict = {'taxa':[],'P':[], 'I':[]}
@@ -355,10 +388,18 @@ for taxa_cutoff_name in rank_order:
     taxa_file.close()
     
     otu_counts = build_otu_counts(feature_table_name)
-    impacted_cor_1, impacted_cor_2, impacted_cor_3, pristine_cor_1, pristine_cor_2, pristine_cor_3 = find_correction_value(otu_counts)
+    #Master_Drug edit
+    if args.prenormalized_abundances:
+        impacted_cor_1, impacted_cor_2, impacted_cor_3, pristine_cor_1, pristine_cor_2, pristine_cor_3 = 1,1,1,1,1,1
+        print('Using prenormalized feature values')
+    else:
+        impacted_cor_1, impacted_cor_2, impacted_cor_3, pristine_cor_1, pristine_cor_2, pristine_cor_3 = find_correction_value(otu_counts)
     
-    print(impacted_cor_1, impacted_cor_2, impacted_cor_3) 
-    print(pristine_cor_1, pristine_cor_2, pristine_cor_3)
+        outline = ('Calculated normalization:\nImpacted Site\t{impacted_cor_1}\t'
+                   '{impacted_cor_2}\t{impacted_cor_3}\n'
+                   'Pristine Site\t{pristine_cor_1}\{pristine_cor_2}\t{pristine_cor_3}\n').format(
+                           impacted_cor_1=impacted_cor_1, impacted_cor_2=impacted_cor_2, impacted_cor_3=impacted_cor_3, 
+                           pristine_cor_1=pristine_cor_1, pristine_cor_2=pristine_cor_2, pristine_cor_3=pristine_cor_3)
     
     taxa_to_counts = {}
     for taxa, otus in taxa_to_otu_dict.items():
@@ -436,7 +477,7 @@ for taxa_cutoff_name in rank_order:
         
         taxa_dict['observed'] += len([s for s in pristine if s != 1]) + len([s for s in impacted if s != 1])
         
-    header = ('taxa\timpacted\tpristine\tvalley\n')
+    header = ('taxa\timpacted\tpristine\n')
     
     all_outfile_name = ('all_unnormalized_taxa_abundance_{}.tab').format(taxa_cutoff_name)
     all_outfile = open(all_outfile_name, 'w')
@@ -492,6 +533,7 @@ for taxa_cutoff_name in rank_order:
             p_array, p_mean, p_std, p_set, p_obs = return_deets(taxa_dict[taxa][1], taxa_dict[taxa][1])
             
             if p_obs or i_obs:
+                #Master_Drug edit - unique function will not work with prenormalized
                 if sum(raw_p_array) >= 100 and sum(raw_i_array) == 0:
                     ct = 0
                     for each in raw_p_array:
